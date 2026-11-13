@@ -28,7 +28,7 @@ Inventory only the categories answered yes.
 Resources are named by the repo, not by this skill. Read how the repo creates per-worktree resources:
 - worktree setup scripts and hooks (`scripts/**/setup*`, `orca.yaml`, `.superset/config.json`, `Makefile`, `.worktreeinclude`);
 - the compose files worktrees use, and how they set the project name and volume names (often an interpolated variable such as `${WORKTREE_NAME}`);
-- how the setup derives the **worktree name**: the normalisation rule, and any truncation or hash fallback;
+- how the setup derives the **worktree name**: the normalisation rule, and any truncation or hash fallback. Derive it with that rule from the branch or workspace name; env files may be unreadable;
 - which databases the setup **creates per worktree** and which ones every worktree **shares**. A common split: one shared dev DB, plus a dedicated test DB created per worktree. Also find which container hosts them and which env keys carry cache or queue prefixes.
 
 Done when you can name, for a given worktree, the exact compose project, volumes, databases and cache prefix the setup creates **for that worktree alone**. Anything you cannot tie to the worktree counts as shared.
@@ -38,7 +38,7 @@ Done when you can name, for a given worktree, the exact compose project, volumes
 Resolve the main checkout (the parent of `git rev-parse --path-format=absolute --git-common-dir`) and `git worktree list --porcelain`. A target's folder may already be gone; resolve it anyway from the branch or name.
 
 **Docker** (if Q1 = yes):
-- Containers: `docker ps -a --filter label=com.docker.compose.project.working_dir=<dir>`. This also works after the folder was deleted. Read the compose project name from these containers.
+- Containers: `docker ps -a --filter label=com.docker.compose.project.working_dir=<dir>`. This also works after the folder was deleted. Read the compose project name from these containers. A container whose project is the shared infra was only started from this folder: it is shared, not the worktree's.
 - Images built for that project (`<project>-<service>`). Pulled images used by other projects are shared.
 - Volumes labelled `com.docker.compose.project=<project>`, plus the named volumes from step 1 resolved for this worktree.
 - Networks labelled with the project. External networks are shared.
@@ -47,13 +47,13 @@ Resolve the main checkout (the parent of `git rev-parse --path-format=absolute -
 - Databases: the per-worktree names from step 1, plus any database on the shared server whose name contains the worktree name as a whole token (hyphen and underscore variants). A token that is a prefix of another worktree's name (`foo-62` vs `foo-621`) is not a match. A DB the setup shares across worktrees is never a candidate, even if its name matches.
 - Cache keys: only under a prefix unique to this worktree (`redis-cli --scan --pattern '<prefix>*'`, count them). If the prefix is a shared default, there are no candidates.
 
-**Folder** (if Q3 = yes): check for uncommitted changes (`git -C <dir> status --porcelain`; untracked but ignored env files are expected), commits not on any remote (`git -C <dir> log --branches --not --remotes --oneline`), and an open PR (`gh pr list --head <branch>`). If the git metadata is broken (`.git` points to a pruned gitdir), compare the tracked files with the branch tip from the main checkout (`git show <branch>:<path> | cmp - <dir>/<path>`). Any work at risk blocks the folder deletion.
+**Folder** (if Q3 = yes): check for uncommitted changes (`git -C <dir> status --porcelain`; untracked but ignored env files are expected), commits of the target branch not on any remote (`git -C <dir> log <branch> --not --remotes --oneline`; `--branches` would list every worktree's branches), and an open PR (`gh pr list --head <branch>`). If the git metadata is broken (`.git` points to a pruned gitdir), compare the tracked files with the branch tip from the main checkout (`git show <branch>:<path> | cmp - <dir>/<path>`). Any work at risk blocks the folder deletion.
 
 With `--all`, the targets are every worktree name found in these resources, minus the main checkout and `--keep`. Mark a target whose containers are **running** and that the user did not name as active.
 
 ## 3. Confirm the exact list
 
-Ask with the question tool again, one question per category that has candidates. Use **multiSelect**, one option per resource with its exact name, plus counts and sizes where known (e.g. `teatec_test_foo_62 (database)` or `412 cache keys under foo-62_`). Every option starts unselected, and active worktrees get "(running)" in the label.
+Ask with the question tool again, one question per category that has candidates. Use **multiSelect**, one option per resource with its exact name, plus counts and sizes where known (e.g. `<db>_test_foo_62 (database)` or `412 cache keys under foo-62_`). Every option starts unselected, and active worktrees get "(running)" in the label.
 
 The plan lists the selected items with their actions, and the skipped items with the reason: shared, main checkout, kept, running, ambiguous match, or work at risk. Get approval through `ExitPlanMode` in Claude Code, or an explicit "yes" elsewhere. Only the approved items are deleted.
 
