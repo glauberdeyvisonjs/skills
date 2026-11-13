@@ -18,6 +18,7 @@ Minhas skills pessoais do Claude Code. Cada skill fica numa pasta com a skill em
 | [fix-prs](fix-prs/) | List PRs needing your fixes and missing review re-requests | Lista PRs pendentes de ajustes e re-requests esquecidos |
 | [tasks-pendentes](tasks-pendentes/) | List actionable Linear issues by priority and blockers | Lista issues disponíveis no Linear por prioridade e bloqueios |
 | [before-pr-protocol](before-pr-protocol/) | Run the current repository's test suites before a PR | Roda as suítes de testes do repositório atual antes da PR |
+| [worktree-cleanup](worktree-cleanup/) | Remove a worktree's own Docker resources, databases and cache keys after plan-mode confirmation, keeping shared ones | Remove os recursos Docker, bancos e chaves de cache próprios de uma worktree após confirmação no modo plan, mantendo os compartilhados |
 
 ## Install
 
