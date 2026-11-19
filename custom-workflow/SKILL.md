@@ -5,11 +5,25 @@ description: Use when the user invokes /custom-workflow, or asks to develop one 
 
 # Custom Workflow
 
-Pick question tool → ask task source, tasks and models → plan → approval → one Workflow (one step per plan phase + final review) → report → commit only on approval.
+Resolve task source, tasks and models (questions or `--recommended`) → plan → approval → one Workflow (one step per plan phase + final review) → report → commit only on approval.
 
 **This is the user's standing process. Follow every rule below unless the user emphatically asks to change a specific part in the current conversation.** Invoking this skill is the explicit opt-in for the Workflow tool.
 
+## Arguments and recommended answers
+
+Usage: `/custom-workflow [--recommended] [tasks: issue keys, URLs or text]`.
+
+- Parse `--recommended` from the invocation before Step 0; it is a skill argument, not task text or a flag to pass to other tools.
+- With `--recommended`, automatically select the documented recommended answer to every applicable question in **every round and phase**, including conditional follow-ups and later questions with a recommendation. Resolve dependencies in order; skip questions whose conditions are false. Explicit choices supplied by the user take precedence.
+- Keep this mode for the whole run, including retries and resumes. Do not open a question tool or wait for confirmation of recommended answers. Briefly state the resolved choices and continue.
+- T1 uses the recommended readable source indicated by the prompt, otherwise `Text`. T2 uses matching tasks already supplied; if none were supplied, use an unambiguous task candidate from the branch only when its tracker is established. Missing task text, an ambiguous tracker or an unreadable source still requires the user; never invent a task or silently substitute another source.
+- Steps 1–2 defaults: `DEV_MODEL=haiku`, `USE_CODEX=true`, `REVIEW_MODEL=haiku`, `PHASE_CODEX={model: "gpt-6-astra", effort: "high"}`, `FINAL_CODEX={model: "gpt-6-astra", effort: "medium"}`. Use these only for choices not explicitly supplied by the user; `USE_CODEX=false` skips Q4/Q5.
+- Questions without a recommendation or required information that cannot be inferred still need an answer. The flag does not approve plans, commits, pushes, PR publication, external comments, destructive actions or migrations; retain the applicable explicit approval gates.
+- Without the flag, keep the interactive flow below.
+
 ## Step 0 — Question tool
+
+With `--recommended`, resolve recommended answers directly. Skip this tool setup and the grill check/install unless an unresolved question actually needs the user.
 
 - **AskUserQuestion available → use it** for every question in Steps 1–2: one call per round, recommended option first with "(Recommended)", "Other" for free input. Skip the grill check below.
 - **Not available → grilling.** Check that both `~/.claude/skills/grill-me/SKILL.md` and `~/.claude/skills/grilling/SKILL.md` exist (`ls -L`).
@@ -18,7 +32,7 @@ Pick question tool → ask task source, tasks and models → plan → approval �
 
 ## Step 1 — Ask the task source and tasks
 
-Never assume a tracker. Ask with the Step 0 tool (same rounds as Step 2 — ask T1 in round 1 together with Q1/Q2):
+Resolve the tracker from T1. In interactive mode, ask with the Step 0 tool (same rounds as Step 2 — ask T1 in round 1 together with Q1/Q2); with `--recommended`, apply the recommendations directly:
 
 - **T1** Task source. Offer only what this session can read:
   - `Linear` — only if Linear MCP tools are available.
@@ -30,15 +44,15 @@ Never assume a tracker. Ask with the Step 0 tool (same rounds as Step 2 — ask 
 
 Record `TASK_SOURCE` and the task list.
 
-## Step 2 — Ask the model choices
+## Step 2 — Resolve the model choices
 
-Same rounds as Step 1, scoped to exactly these decisions, with a recommended answer each:
+Same rounds as Step 1, scoped to exactly these decisions, with a recommended answer each. With `--recommended`, resolve both rounds without asking:
 
 - Round 1 — **Q1** Developer agents' model: `haiku` | `sonnet` | `opus` | `fable` (➡️ haiku). **Q2** Review with Codex? yes | no (➡️ yes).
 - Round 2 — **Q3** Reviewer agents' model: `haiku` | `sonnet` | `opus` | `fable` (➡️ haiku). Frame it with the Q2 answer: yes → "this agent only relays to Codex"; no → "this agent reviews the diff itself".
 - Round 2, only if Q2 = yes — **Q4** Codex model + reasoning effort for **per-phase** reviews. **Q5** Codex model + reasoning effort for the **final general** review. Options: the `model` in `~/.codex/config.toml` or any model the user types; effort `low` | `medium` | `high` (➡️ Q4: `gpt-6-astra` · `high`. Q5: `gpt-6-astra` · `medium` — the final diff is larger and `high` risks the 10-min Bash timeout). With AskUserQuestion: options `<config model> · high` / `· medium` / `· low`, "Other" for another model.
 
-Record `DEV_MODEL`, `USE_CODEX`, `REVIEW_MODEL`, and when `USE_CODEX`: `PHASE_CODEX = {model, effort}`, `FINAL_CODEX = {model, effort}`. They hold for the whole run. If the user later asks to change one, re-ask only that one.
+Record `DEV_MODEL`, `USE_CODEX`, `REVIEW_MODEL`, and when `USE_CODEX`: `PHASE_CODEX = {model, effort}`, `FINAL_CODEX = {model, effort}`. They hold for the whole run. If the user later supplies a new value, apply it; if they ask to change one without specifying a value, resolve only that choice using the active question mode.
 
 ## Step 3 — Build the plan
 
@@ -167,10 +181,10 @@ When the Workflow returns:
 | Thought | Reality |
 |---------|---------|
 | "AskUserQuestion is there, but grilling is the documented way" | AskUserQuestion first; grilling only when it is unavailable. |
-| "No AskUserQuestion and grill-me is missing, I'll ask in plain chat" | Ask to install; declined → abort. |
-| "Prompt has an issue key, it must be Linear" | Ask T1. Recommend, never assume. |
-| "User used haiku last time, skip the questions" | Ask every run. |
-| "Final review can reuse the per-phase Codex model" | Ask Q5 separately. |
+| "No AskUserQuestion and grill-me is missing, I'll ask in plain chat" | If an unresolved question needs the user, ask to install; declined → abort. No question-tool dependency for automatic answers. |
+| "Prompt has an issue key, it must be Linear" | Resolve T1 from a supported source; an ambiguous tracker still needs an answer. |
+| "User used haiku last time, skip the questions" | Ask every run unless `--recommended` was supplied. |
+| "Final review can reuse the per-phase Codex model" | Resolve Q5 separately, including its own recommendation with `--recommended`. |
 | "Chosen Codex model failed, use the config default" | Fail and ask. |
 | "Codex failed, the reviewer agent can review this small diff" | Only when Q2 = no. Otherwise return review_unavailable and ask. |
 | "Plan is obvious, start the workflow" | No script before explicit approval. |

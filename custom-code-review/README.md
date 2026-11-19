@@ -8,7 +8,11 @@ from failures that already existed. It can run a second reviewer (Codex or anoth
 The result is a table-based report with a recommendation. Read-only: it never edits code, never posts to
 GitHub or to the tracker, and never runs migrations.
 
-Usage: `/custom-code-review` on the PR's branch.
+Usage: `/custom-code-review [--recommended]` on the PR's branch.
+
+Example: `/custom-code-review --recommended`.
+
+`--recommended` skips questions with recommended answers in **all rounds and phases**, including conditional follow-ups, retries and resumes. After scanning context, it applies the defaults below in dependency order, using available options. Explicit choices you supply override the defaults, and a spec already supplied is reused. Missing information and questions without recommendations still need an answer. Read-only rules, database checks and explicit approval requirements still apply. Without the flag, questions stay interactive.
 
 ## Requirements
 
@@ -20,7 +24,7 @@ Usage: `/custom-code-review` on the PR's branch.
 | # | Step | Who |
 |---|------|-----|
 | 1 | Scan: PR, inline comments, CI checks, local vs remote, task key, re-request mode, review skills, Codex | Main agent |
-| 2 | Questions (AskUserQuestion, 2 rounds) | Main agent + user |
+| 2 | Choices: AskUserQuestion in 2 rounds, or automatic recommendations with `--recommended` | Main agent + user when needed |
 | 3 | Load the spec: ACs, business rules, out of scope; compare with the PR description | Main agent |
 | 4 | Tests: test database isolation check → run → classify failures | Main agent + tests subagent |
 | 5 | In parallel: primary reviewer (subagent, optional review skill) + second reviewer + tests | Subagents / Codex |
@@ -31,14 +35,14 @@ Usage: `/custom-code-review` on the PR's branch.
 
 | Round | Question | Options | Default |
 |-------|----------|---------|---------|
-| 1 | Q1 — Spec source | Linear / Jira / Text (paste) / Other (specify) | Linear |
+| 1 | Q1 — Spec source | Linear / Jira (working MCP only) / Text (paste) / Other (specify) | first available: Linear → Jira → Text |
 | 1 | Q3 — Run automated tests? | yes / no | yes |
 | 1 | Q5 — Minimum severity that blocks | P0 / P1 / P2 / P3 | P2 |
-| 1 | Q6 — Second review in parallel? | Codex / another Claude subagent / no | Codex |
-| 2 | Q2 — Task code/link | key from the PR description or the branch | branch key |
+| 1 | Q6 — Second review in parallel? | Codex / another Claude subagent / no | Codex; Claude if Codex is unavailable |
+| 2 | Q2 — Task code/link | keys matching the source from the PR description or branch | branch key; otherwise a single matching PR candidate |
 | 2 | Q4 — Reject for test failures? *(if Q3 = yes)* | only failures from the PR / any failure / no | only from the PR |
-| 2 | Q7 — Review skill *(if 2+ installed)* | installed skills / none | — |
-| 2 | Q8 — Second reviewer model *(Codex: model + effort)* | — | `config.toml` model · high |
+| 2 | Q7 — Review skill *(if 2+ installed)* | installed skills / none | most relevant to the diff; ties by skill name |
+| 2 | Q8 — Second reviewer model *(Codex: model + effort)* | Codex model · low / medium / high; Claude: sonnet / opus / haiku / fable | Codex: `config.toml` model · high; Claude: sonnet |
 
 ## Re-review
 

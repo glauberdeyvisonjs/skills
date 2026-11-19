@@ -6,12 +6,16 @@ Skill do Claude Code para desenvolver uma ou mais tasks (tickets de um issue tra
 com um workflow multi-agent planejado: agents desenvolvedores, revisão pelo Codex a cada
 fase e revisão geral no final. Tudo passa pela aprovação do usuário antes de começar.
 
-Uso: `/custom-workflow` — opcionalmente seguido das tasks (chaves, URLs ou texto).
+Uso: `/custom-workflow [--recommended]` — opcionalmente seguido das tasks (chaves, URLs ou texto).
+
+Exemplo: `/custom-workflow --recommended ENG-482`.
+
+`--recommended` pula as perguntas com respostas recomendadas em **todas as rodadas e fases**, incluindo perguntas condicionais, novas tentativas e retomadas. Usa a fonte indicada no prompt (senão Texto), haiku para devs e revisores, Codex ativado, `gpt-6-astra · high` nas revisões por fase e `gpt-6-astra · medium` na revisão geral. Escolhas explícitas suas prevalecem sobre esses padrões. Dados da task que faltarem e perguntas sem recomendação ainda precisam de resposta; as aprovações de plano, commit e publicação continuam obrigatórias. Sem o parâmetro, as perguntas continuam interativas.
 
 ## Pré-requisitos
 
 - [Claude Code](https://claude.com/claude-code) com a ferramenta Workflow.
-- As perguntas usam AskUserQuestion quando disponível. Senão, as skills `grill-me` e `grilling` ([mattpocock/skills](https://github.com/mattpocock/skills)) são obrigatórias; se faltarem, a skill oferece instalar e, se você recusar, aborta.
+- As perguntas interativas usam AskUserQuestion quando disponível. Senão, as skills `grill-me` e `grilling` ([mattpocock/skills](https://github.com/mattpocock/skills)) são obrigatórias; se faltarem, a skill oferece instalar e, se você recusar, aborta. Com `--recommended`, essa preparação é pulada enquanto nenhuma pergunta pendente precisar de você.
 - [Codex CLI](https://github.com/openai/codex), se for revisar com Codex.
 - Opcional: `superpowers:writing-plans`, usado quando o modo Plan não está ativo. MCP do Linear ou do Jira, pra ler tasks de um tracker.
 
@@ -19,8 +23,8 @@ Uso: `/custom-workflow` — opcionalmente seguido das tasks (chaves, URLs ou tex
 
 | # | Etapa | Quem faz | Gate |
 |---|-------|----------|------|
-| 0 | Ferramenta de perguntas: AskUserQuestion se disponível; senão `grilling` (oferece instalar `grill-me`/`grilling` se faltar, aborta se recusar) | Agent principal | Instalação (só no fallback) |
-| 1–2 | Perguntas: fonte da task, tasks e modelos (ver abaixo) | Agent principal + usuário | Respostas |
+| 0 | Ferramenta de perguntas quando necessária: AskUserQuestion se disponível; senão `grilling` (oferece instalar `grill-me`/`grilling` se faltar, aborta se recusar) | Agent principal | Instalação (só no fallback) |
+| 1–2 | Fonte da task, tasks e modelos: perguntas ou recomendações automáticas com `--recommended` | Agent principal + usuário quando necessário | Respostas |
 | 3 | Ler as issues e explorar o código necessário | Agent principal | — |
 | 4 | Montar o Plan: modo Plan se ativo → senão `superpowers:writing-plans` → senão pedir pra trocar pro modo Plan | Agent principal | — |
 | 5 | Com múltiplas tasks: ordem sugerida + o que roda em paralelo | Agent principal | — |
@@ -30,7 +34,7 @@ Uso: `/custom-workflow` — opcionalmente seguido das tasks (chaves, URLs ou tex
 | 9 | Resumo consolidado. Se parou: pergunta como seguir e retoma com `resumeFromRunId` | Agent principal | — |
 | 10 | Pergunta se quer commit/PR. Só commita depois da aprovação | Agent principal | Aprovação |
 
-## Perguntas (a cada uso)
+## Escolhas (interativas ou recomendadas)
 
 | Rodada | Pergunta | Opções | Recomendação |
 |--------|----------|--------|--------------|
@@ -42,7 +46,7 @@ Uso: `/custom-workflow` — opcionalmente seguido das tasks (chaves, URLs ou tex
 | 2 | Q4 — Modelo + effort do Codex na revisão por fase *(se Q2 = sim)* | modelo do `~/.codex/config.toml` ou outro · low / medium / high | gpt-6-astra · high |
 | 2 | Q5 — Modelo + effort do Codex na revisão geral *(se Q2 = sim)* | idem | gpt-6-astra · medium (diff maior, evita timeout) |
 
-- Nenhum tracker é assumido: a fonte é sempre perguntada, e só aparecem as fontes com MCP funcionando.
+- Só aparecem fontes com MCP funcionando. A fonte é perguntada no modo interativo ou resolvida pela recomendação com `--recommended`; um tracker ambíguo ainda precisa de esclarecimento.
 - **Q2 = sim** → o revisor é só um **relay**: roda o Codex e repassa o resultado. Se o Codex falhar ou recusar o modelo, a revisão falha e o usuário é consultado. O relay nunca revisa por conta própria, e não há fallback silencioso pra outro modelo.
 - **Q2 = não** → o agent revisor (modelo da Q3) revisa o diff ele mesmo.
 

@@ -20,6 +20,10 @@ Minhas skills pessoais do Claude Code. Cada skill fica numa pasta com a skill em
 | [before-pr-protocol](before-pr-protocol/) | Run the current repository's test suites before a PR | Roda as suítes de testes do repositório atual antes da PR |
 | [worktree-cleanup](worktree-cleanup/) | Remove a worktree's own Docker resources, databases and cache keys after plan-mode confirmation, keeping shared ones | Remove os recursos Docker, bancos e chaves de cache próprios de uma worktree após confirmação no modo plan, mantendo os compartilhados |
 
+`custom-workflow` and `custom-code-review` accept `--recommended` to automatically use recommended answers in every question round and phase, including conditional follow-ups. Explicit choices override defaults; missing information and required approvals still need the user.
+
+`custom-workflow` e `custom-code-review` aceitam `--recommended` para usar automaticamente as respostas recomendadas em todas as rodadas e fases de perguntas, incluindo as condicionais. Escolhas explícitas prevalecem sobre os padrões; informações ausentes e aprovações obrigatórias ainda precisam do usuário.
+
 ## Install
 
 ```bash

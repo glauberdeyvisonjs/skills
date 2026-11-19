@@ -5,9 +5,21 @@ description: Use when the user invokes /custom-code-review, or asks to review or
 
 # Custom Code Review
 
-Context scan → questions → load spec → (tests) + review subagent (+ second reviewer) in parallel → consolidate and verify → report → save report locally.
+Context scan → resolve choices (questions or `--recommended`) → load spec → (tests) + review subagent (+ second reviewer) in parallel → consolidate and verify → report → save report locally.
 
 **This is the user's standing review process. Follow every rule below unless the user emphatically asks to change a specific part in the current conversation.**
+
+## Arguments and recommended answers
+
+Usage: `/custom-code-review [--recommended]` on the PR's branch; the invocation may also supply a spec or explicit choices.
+
+- Parse `--recommended` from the invocation before Step 1; it is a skill argument, not spec text or a flag to pass to other tools.
+- With `--recommended`, automatically select the documented recommended answer to every applicable question in **every round and phase**, including conditional follow-ups and later questions with a recommendation. Resolve dependencies in order; skip questions whose conditions are false. Explicit choices supplied by the user take precedence.
+- Keep this mode for the whole run, including retries and resumes. Do not open a question tool or wait for confirmation of recommended answers. Briefly state the resolved choices and continue.
+- Run the context scan first. Then resolve both Step 2 rounds from the recommendations below, using only available sources, review skills and reviewers. A supplied spec satisfies the text question; do not ask for it again.
+- Missing required information (such as the spec, a usable task key or the Codex config model) and questions without a recommendation still need an answer. Never invent values or treat the first option of an unmarked question as recommended.
+- The flag does not override read-only rules, database checks, migration restrictions or explicit approval requirements, including approval before any push or external comment. In particular, Step 1 scope changes and runtime failures without a documented recommendation still require the user.
+- Without the flag, keep the interactive flow below.
 
 ## Hard rules
 
@@ -35,28 +47,30 @@ gh pr checks
 - **Review skills:** available skills whose description is about reviewing code, diffs or PRs (e.g. `code-review`, `superpowers:requesting-code-review`, `caveman:caveman-review`). Exclude this skill, skills for receiving reviews, and skills that edit code (`simplify`).
 - Codex available: `command -v codex`; default model from `~/.codex/config.toml`.
 
-## Step 2 — Ask (AskUserQuestion, max 2 calls)
+## Step 2 — Resolve choices (AskUserQuestion or `--recommended`)
 
-Round 1 — one call:
+Interactive mode: at most two calls. With `--recommended`: no calls for resolved recommendations in either round. For both tables, the first available option is recommended unless a row states otherwise; order context-dependent options as specified below.
+
+Round 1 — one call in interactive mode:
 
 | Q | Question | Options (first = recommended) |
 |---|----------|-------------------------------|
-| Q1 | Spec source | `Linear` · `Jira` · `Texto (colar)` — "Other" = another source, user specifies |
+| Q1 | Spec source | `Linear` · `Jira` · `Texto (colar)` — offer trackers only with a working MCP; "Other" = another source, user specifies |
 | Q3 | Run automated tests (unit/feature)? | `Sim` · `Não` |
 | Q5 | Minimum severity that blocks the PR | `P2` · `P1` · `P0` · `P3` |
 | Q6 | Run a second review in parallel? | `Sim, Codex` · `Sim, outro subagent Claude` · `Não` (Codex missing → drop that option; Claude becomes first) |
 
-Round 2 — one call with only the questions that apply:
+Round 2 — one call in interactive mode, with only the questions that apply:
 
 | Q | When | Question | Options |
 |---|------|----------|---------|
-| Q2 | Q1 = Linear/Jira/Other | Task code or link | the key candidates (branch key recommended) — "Other" = type it |
+| Q2 | Q1 = Linear/Jira/Other | Task code or link | candidates matching Q1 (branch key recommended, else a single matching PR candidate; unresolved ambiguity or no candidate → ask) — "Other" = type it |
 | Q4 | Q3 = Sim | Reject the PR for test failures? | `Sim, só falhas da PR` (new tests of this PR or failures caused by its changes) · `Sim, qualquer falha` · `Não` |
-| Q7 | 2+ review skills | Which review skill should the reviewer use? | up to 3 skills + `Nenhuma (review direta)` |
+| Q7 | 2+ review skills | Which review skill should the reviewer use? | up to 3 skills, most relevant to this diff first (recommended; break ties by skill name), + `Nenhuma (review direta)` |
 | Q8 | Q6 = Codex | Codex model + effort | `<config model> · high` · `<config model> · medium` · `<config model> · low` — "Other" = any model |
 | Q8 | Q6 = Claude | Second reviewer model | `sonnet` · `opus` · `haiku` · `fable` |
 
-- Q1 = Texto → ask in plain chat for the pasted spec and wait.
+- Q1 = Texto → use the spec supplied in the invocation; if missing, ask in plain chat for the pasted spec and wait.
 - Linear/Jira picked but no working MCP for it → say so and re-ask Q1.
 - Exactly 1 review skill → use it without asking, say which. None → direct review.
 
@@ -149,5 +163,5 @@ Save the report with `BASE`, head SHA and the answers to `~/.claude/custom-code-
 | "Codex flagged it, so it goes in the table" | Verify P0–P2 at file:line first. |
 | "P2 at threshold P2 but it's minor, approve" | Rule says Reprovar. State it, then add your suggestion. |
 | "Let me post the comments for the user" | Never post or offer to. Report and local file only. |
-| "Branch key and PR link differ, take the branch" | Offer both in Q2. |
+| "Branch key and PR link differ, take the branch" | Interactive: offer both in Q2. With `--recommended`: use the branch key only if it matches Q1; report the chosen key. |
 | "AC is ambiguous, mark it not met" | `unverifiable` + spec question. |

@@ -6,12 +6,16 @@ A Claude Code skill for developing one or more tasks (issue-tracker tickets or p
 planned multi-agent workflow: developer agents, Codex review after every phase and a general
 review at the end. The user approves everything before any work starts.
 
-Usage: `/custom-workflow` — optionally followed by the tasks (issue keys, URLs or text).
+Usage: `/custom-workflow [--recommended]` — optionally followed by the tasks (issue keys, URLs or text).
+
+Example: `/custom-workflow --recommended ENG-482`.
+
+`--recommended` skips questions with recommended answers in **all rounds and phases**, including conditional follow-ups, retries and resumes. It uses the source indicated by the prompt (otherwise Text), haiku for developers and reviewers, Codex enabled, `gpt-6-astra · high` for per-phase reviews and `gpt-6-astra · medium` for the final review. Explicit choices you supply override those defaults. Missing task details and questions without recommendations still need an answer; plan, commit and publication approvals remain required. Without the flag, questions stay interactive.
 
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) with the Workflow tool.
-- Questions use AskUserQuestion when available. Otherwise, the `grill-me` and `grilling` skills ([mattpocock/skills](https://github.com/mattpocock/skills)) are required; if they are missing, the skill offers to install them and aborts if you decline.
+- Interactive questions use AskUserQuestion when available. Otherwise, the `grill-me` and `grilling` skills ([mattpocock/skills](https://github.com/mattpocock/skills)) are required; if they are missing, the skill offers to install them and aborts if you decline. With `--recommended`, this setup is skipped unless an unresolved question needs you.
 - [Codex CLI](https://github.com/openai/codex), if you review with Codex.
 - Optional: `superpowers:writing-plans`, used when plan mode is off. Linear or Jira MCP, to read tasks from a tracker.
 
@@ -19,8 +23,8 @@ Usage: `/custom-workflow` — optionally followed by the tasks (issue keys, URLs
 
 | # | Step | Who | Gate |
 |---|------|-----|------|
-| 0 | Question tool: AskUserQuestion if available; otherwise `grilling` (offer to install `grill-me`/`grilling` if missing, abort on decline) | Main agent | Install (fallback only) |
-| 1–2 | Questions: task source, tasks and models (see below) | Main agent + user | Answers |
+| 0 | Question tool when needed: AskUserQuestion if available; otherwise `grilling` (offer to install `grill-me`/`grilling` if missing, abort on decline) | Main agent | Install (fallback only) |
+| 1–2 | Task source, tasks and models: questions or automatic recommendations with `--recommended` | Main agent + user when needed | Answers |
 | 3 | Read the issues and explore the code that is needed | Main agent | — |
 | 4 | Plan: plan mode if active → else `superpowers:writing-plans` → else ask the user to switch to plan mode | Main agent | — |
 | 5 | With several tasks: suggested order and what runs in parallel | Main agent | — |
@@ -30,7 +34,7 @@ Usage: `/custom-workflow` — optionally followed by the tasks (issue keys, URLs
 | 9 | Consolidated report. If stopped: ask how to proceed, resume with `resumeFromRunId` | Main agent | — |
 | 10 | Ask about commit/PR. Commit only after approval | Main agent | Approval |
 
-## Questions (every run)
+## Choices (interactive or recommended)
 
 | Round | Question | Options | Recommended |
 |-------|----------|---------|-------------|
@@ -42,7 +46,7 @@ Usage: `/custom-workflow` — optionally followed by the tasks (issue keys, URLs
 | 2 | Q4 — Codex model + effort for per-phase reviews *(if Q2 = yes)* | `~/.codex/config.toml` model or any · low / medium / high | gpt-6-astra · high |
 | 2 | Q5 — Codex model + effort for the final review *(if Q2 = yes)* | same | gpt-6-astra · medium (larger diff, avoids timeout) |
 
-- No tracker is assumed: the source is always asked, and only sources with a working MCP are offered.
+- Only sources with a working MCP are offered. The source is asked interactively or resolved from the recommendation with `--recommended`; an ambiguous tracker still needs clarification.
 - **Q2 = yes** → the reviewer is only a **relay**: it runs Codex and passes on the result. If Codex fails or rejects the model, the review fails and the user is asked. The relay never reviews on its own, and there is no silent fallback to another model.
 - **Q2 = no** → the reviewer agent (Q3 model) reviews the diff itself.
 

@@ -8,7 +8,11 @@ já existiam. Pode rodar uma segunda revisão (Codex ou outro subagent Claude) e
 relatório em tabelas com uma recomendação. É só leitura: nunca edita código, nunca posta no GitHub nem no
 tracker e nunca roda migrations.
 
-Uso: `/custom-code-review` na branch da PR.
+Uso: `/custom-code-review [--recommended]` na branch da PR.
+
+Exemplo: `/custom-code-review --recommended`.
+
+`--recommended` pula as perguntas com respostas recomendadas em **todas as rodadas e fases**, incluindo perguntas condicionais, novas tentativas e retomadas. Após levantar o contexto, aplica os padrões abaixo na ordem das dependências, usando as opções disponíveis. Escolhas explícitas suas prevalecem sobre os padrões, e uma spec já fornecida é reaproveitada. Dados que faltarem e perguntas sem recomendação ainda precisam de resposta. As regras de só leitura, checagem do banco e aprovações explícitas continuam valendo. Sem o parâmetro, as perguntas continuam interativas.
 
 ## Pré-requisitos
 
@@ -20,7 +24,7 @@ Uso: `/custom-code-review` na branch da PR.
 | # | Etapa | Quem faz |
 |---|-------|----------|
 | 1 | Levantamento: PR, comentários inline, checks de CI, local × remoto, chave da task, modo re-request, skills de review, Codex | Agent principal |
-| 2 | Perguntas (AskUserQuestion, 2 rodadas) | Agent principal + usuário |
+| 2 | Escolhas: AskUserQuestion em 2 rodadas ou recomendações automáticas com `--recommended` | Agent principal + usuário quando necessário |
 | 3 | Ler a spec: critérios de aceite, regras de negócio, fora de escopo; comparar com a descrição da PR | Agent principal |
 | 4 | Testes: checa se o banco de teste está isolado → roda → classifica as falhas | Agent principal + subagent de testes |
 | 5 | Em paralelo: revisor principal (subagent, skill de review opcional) + segundo revisor + testes | Subagents / Codex |
@@ -31,14 +35,14 @@ Uso: `/custom-code-review` na branch da PR.
 
 | Rodada | Pergunta | Opções | Padrão |
 |--------|----------|--------|--------|
-| 1 | Q1 — Fonte da spec | Linear / Jira / Texto (colar) / Outro (especificar) | Linear |
+| 1 | Q1 — Fonte da spec | Linear / Jira (só com MCP funcionando) / Texto (colar) / Outro (especificar) | primeira disponível: Linear → Jira → Texto |
 | 1 | Q3 — Rodar testes automatizados? | sim / não | sim |
 | 1 | Q5 — Nível mínimo que bloqueia | P0 / P1 / P2 / P3 | P2 |
-| 1 | Q6 — Segunda revisão em paralelo? | Codex / outro subagent Claude / não | Codex |
-| 2 | Q2 — Código/link da task | chave da descrição da PR ou da branch | chave da branch |
+| 1 | Q6 — Segunda revisão em paralelo? | Codex / outro subagent Claude / não | Codex; Claude se Codex não estiver disponível |
+| 2 | Q2 — Código/link da task | chaves da descrição da PR ou da branch compatíveis com a fonte | chave da branch; senão, candidata única da PR |
 | 2 | Q4 — Reprovar por falha de testes? *(se Q3 = sim)* | só falhas da PR / qualquer falha / não | só da PR |
-| 2 | Q7 — Skill de review *(se houver 2+)* | skills instaladas / nenhuma | — |
-| 2 | Q8 — Modelo do segundo revisor *(Codex: modelo + effort)* | — | modelo do `config.toml` · high |
+| 2 | Q7 — Skill de review *(se houver 2+)* | skills instaladas / nenhuma | mais relevante para o diff; desempate pelo nome |
+| 2 | Q8 — Modelo do segundo revisor *(Codex: modelo + effort)* | modelo Codex · low / medium / high; Claude: sonnet / opus / haiku / fable | Codex: modelo do `config.toml` · high; Claude: sonnet |
 
 ## Re-review
 
